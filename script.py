@@ -75,7 +75,7 @@ def main():
 
     numSamples = len(time)
 
-    factor = 1.0 # factor by which to subsample data
+    factor = 2.14 # factor by which to subsample data
 
     T = len(time)*samplePeriod # total time
     N = int((T/samplePeriod)/factor)
@@ -171,7 +171,7 @@ def main():
 
 
     # Threshold detection
-    stationary = acc_magFilt < 0.08 # originally set to 0.05
+    stationary = acc_magFilt < 0.1 # originally set to 0.05
 
     stationary_gyr = gyr_mag < 40
 
@@ -204,9 +204,11 @@ def main():
     ax2.legend(["x","y","z"])
 
     ax3.plot(time, magX, c='r', linewidth=0.5)
-    # ax3.plot(time, magY,c='g',linewidth=0.5)
-    # ax3.plot(time, magZ,c='b',linewidth=0.5)
-    # ax3.plot(time, mag_magFilt,c='k', linewidth=0.5, linestyle=':')
+    ax3.plot(time, magY,c='g',linewidth=0.5)
+    ax3.plot(time, magZ,c='b',linewidth=0.5)
+    norm = np.sqrt(magX*magX+magY*magY)
+    ax3.plot(time, norm,c='k',linewidth=0.5)
+    # ax3.plot(time, mag_mag,c='k', linewidth=0.5, linestyle=':')
     # ax3.plot(time[:-1], mag_derFilt,c='k', linewidth=0.5, linestyle='--')
     # ax3.plot(time[:-1], der_threshold,c='k', linewidth=1, linestyle='-')
     # ax3.plot(time, xinv, linewidth=1, label="pylops")
@@ -232,18 +234,18 @@ def main():
     # types of filters
     mahony = ahrs.filters.Mahony(Kp=1, Ki=0, KpInit=1, Dt=1/sample_frequency)
     madgwick = ahrs.filters.Madgwick(Dt=1/sample_frequency)
-    aqua = ahrs.filters.AQUA(frequency=1/samplePeriod)
+    aqua = ahrs.filters.AQUA(Dt=1/sample_frequency)
     comp = ahrs.filters.Complementary(frequency=1/samplePeriod)
-    ekf = ahrs.filters.EKF(frequency=1/samplePeriod)
-    fourati = ahrs.filters.Fourati(frequency=1/samplePeriod)
+    ekf = ahrs.filters.EKF(Dt=1/sample_frequency)
+    fourati = ahrs.filters.Fourati(Dt=1/sample_frequency)
 
     # initial convergence
     q = np.array([1.0,0.0,0.0,0.0], dtype=np.float64)
     for i in range(2000):
-        if option == 'IMU':
-            q = madgwick.updateIMU(q, gyr=gyr, acc=acc)
-        elif option == 'MARG':
-            q = madgwick.updateMARG(q, gyr=gyr, acc=acc, mag=mag)
+        # if option == 'IMU':
+        q = madgwick.updateIMU(q, gyr=gyr, acc=acc) #, mag=mag  # updateIMU # updateMARG # update
+        # elif option == 'MARG':
+            # q = ekf.update(q, gyr=gyr, acc=acc, mag=mag)
 
     # For all data
     for t in range(0,time.size):
@@ -254,10 +256,10 @@ def main():
         gyr = np.array([gyrX[t],gyrY[t],gyrZ[t]])*np.pi/180
         acc = np.array([accX[t],accY[t],accZ[t]])
         mag = np.array([magX[t],magY[t],magZ[t]])
-        if option == 'IMU':
-            quat[t,:]=madgwick.updateIMU(q,gyr=gyr,acc=acc)
-        elif option == 'MARG':
-            quat[t,:]=madgwick.updateMARG(q,gyr=gyr,acc=acc, mag=mag)
+        # if option == 'IMU':
+        quat[t,:]=madgwick.updateIMU(q,gyr=gyr,acc=acc) # , mag=mag # updateIMU # updateMARG # update
+        # elif option == 'MARG':
+            # quat[t,:]=ekf.update(q,gyr=gyr,acc=acc, mag=mag)
 
 
     # -------------------------------------------------------------------------
@@ -283,7 +285,7 @@ def main():
 
     # Compute integral drift during non-stationary periods
     velDrift = np.zeros(vel.shape)
-    stationaryStart = np.where(np.diff(stationary.astype(int)) == -1)[0]+1
+    stationaryStart = np.where(np.diff(stationary.astype(int)) == -1)[0]+1   #[0]
     stationaryEnd = np.where(np.diff(stationary.astype(int)) == 1)[0]+1
     for i in range(0,stationaryEnd.shape[0]):
         driftRate = vel[stationaryEnd[i]-1,:] / (stationaryEnd[i] - stationaryStart[i])
