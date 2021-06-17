@@ -56,7 +56,7 @@ startTime = 4
 stopTime = 47
 samplePeriod = 1.0/256
 
-def main():
+def build_trajectory(freq=256, tau=tau):
     # -------------------------------------------------------------------------
     # extract data
     xIMUdata = xIMU.xIMUdataClass(filePath, 'InertialMagneticSampleRate', 1/samplePeriod)
@@ -87,11 +87,13 @@ def main():
 
     numSamples = len(time)
 
-    factor = scaling # factor by which to subsample data
+    # factor = scaling # factor by which to subsample data
 
     T = len(time)*samplePeriod # total time
-    N = int((T/samplePeriod)/factor)
-    sample_frequency = N/T
+    # N = int((T/samplePeriod)/factor)
+    # sample_frequency = N/T
+    sample_frequency=float(freq)
+    N = int(sample_frequency*T)
     print("test new sample frequency is {} Hz".format(sample_frequency))
 
 
@@ -185,7 +187,7 @@ def main():
 
     # Threshold detection
     # tau = 0.1
-    stationary = acc_magFilt < float(tau) # originally set to 0.05
+    stationary = acc_magFilt < tau # originally set to 0.05
 
     stationary_gyr = gyr_mag < 40
 
@@ -382,6 +384,12 @@ def main():
     data = pd.DataFrame(pos)
     data.to_csv("./data/pos_freq{}_thresh{}.csv".format(int(sample_frequency), tau))
 
+    return pos, quat
+
 
 if __name__ == "__main__":
-    main()
+    pos, quat = build_trajectory(freq=256, tau=0.05) # reference data
+    factors = np.linspace(1.0, 3.0, 10)
+    taus = np.linspace(0.05, 0.1, 10)
+    print(factors, taus)
+
