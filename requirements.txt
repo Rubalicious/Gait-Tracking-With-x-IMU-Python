@@ -1,2 +1,4 @@
 pyquaternion
 ahrs
+scikit-image
+pylops
