@@ -24,9 +24,21 @@ parser.add_argument(
     default='256',
     help='choose sampling frequency to use'
 )
+parser.add_argument(
+    '-s', '--scaling',
+    default=1,
+    help="factor by which to subsample data"
+)
+parser.add_argument(
+    '-t', '--tau',
+    default=0.1,
+    help="specify the acceleration threshold"
+)
 args = parser.parse_args()
 option = args.algorithm
 sf = float(args.frequency)
+tau = float(args.tau)
+scaling = float(args.scaling)
 
 
 # filePath = 'datasets/straightLine'
@@ -75,7 +87,7 @@ def main():
 
     numSamples = len(time)
 
-    factor = 2.14 # factor by which to subsample data
+    factor = scaling # factor by which to subsample data
 
     T = len(time)*samplePeriod # total time
     N = int((T/samplePeriod)/factor)
@@ -84,11 +96,12 @@ def main():
 
 
     print("length of time series is {}".format(N))
+    print("scaling factor = {}".format(float(scaling)))
+    print("threshold = {}".format(float(tau)))
 
     # -------------------------------------------------------------------------
     # subsampling accX_ss = accX_subsampled
     time = signal.resample(time, N)
-    print("new time length={}".format(len(time)))
 
     accX = signal.resample(accX, N)
     accY = signal.resample(accY, N)
@@ -171,7 +184,8 @@ def main():
 
 
     # Threshold detection
-    stationary = acc_magFilt < 0.1 # originally set to 0.05
+    # tau = 0.1
+    stationary = acc_magFilt < float(tau) # originally set to 0.05
 
     stationary_gyr = gyr_mag < 40
 
@@ -246,6 +260,11 @@ def main():
         q = madgwick.updateIMU(q, gyr=gyr, acc=acc) #, mag=mag  # updateIMU # updateMARG # update
         # elif option == 'MARG':
             # q = ekf.update(q, gyr=gyr, acc=acc, mag=mag)
+
+    # all data can be returned in this form
+    # orientation = Fourati(gyr)
+    # orientation = Madgwick(gyr=gyro_data, acc=acc_data, mag=mag_data)
+    # orientation = Mahony(gyr=gyro_data, acc=acc_data, mag=mag_data) 
 
     # For all data
     for t in range(0,time.size):
@@ -346,7 +365,7 @@ def main():
     ax.set_xlim(min_,max_)
     ax.set_ylim(min_,max_)
     ax.set_zlim(min_,max_)
-    ax.set_title('trajectory using {}\nand sample frequency {:.2f}'.format('madgwick', sample_frequency))
+    ax.set_title('trajectory using {}\nand sample frequency {:.2f}\nthreshold used: {:.2f}'.format('madgwick', sample_frequency, tau))
     ax.set_xlabel("x position (m)")
     ax.set_ylabel("y position (m)")
     ax.set_zlabel("z position (m)")
@@ -358,10 +377,10 @@ def main():
     # upsample and record data
     quat = signal.resample(quat, numSamples)
     data = pd.DataFrame(quat)
-    data.to_csv("quaternions_freq{}.csv".format(int(sample_frequency)))
+    data.to_csv("./data/quat_freq{}_thresh{}.csv".format(int(sample_frequency), tau))
     pos = signal.resample(pos, numSamples)
     data = pd.DataFrame(pos)
-    data.to_csv("positions_freq{}.csv".format(int(sample_frequency)))
+    data.to_csv("./data/pos_freq{}_thresh{}.csv".format(int(sample_frequency), tau))
 
 
 if __name__ == "__main__":
