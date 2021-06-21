@@ -7,7 +7,7 @@ import numpy as np
 from scipy import signal
 from matplotlib import pyplot as plt
 from mpl_toolkits.mplot3d import Axes3D
-import argparse
+# import argparse
 from ahrs import QuaternionArray
 from skimage import restoration, filters
 import pylops
