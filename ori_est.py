@@ -41,20 +41,20 @@ import pandas as pd
 # scaling = float(args.scaling)
 
 
-filePath = 'datasets/straightLine'
-startTime = 6
-stopTime = 26
-samplePeriod = 1/256
+# filePath = 'datasets/straightLine'
+# startTime = 6
+# stopTime = 26
+# samplePeriod = 1/256
 
 # filePath = 'datasets/stairsAndCorridor'
 # startTime = 5
 # stopTime = 53
 # samplePeriod = 1/256
 
-# filePath = 'datasets/spiralStairs'
-# startTime = 4
-# stopTime = 47
-# samplePeriod = 1.0/256
+filePath = 'datasets/spiralStairs'
+startTime = 4
+stopTime = 47
+samplePeriod = 1.0/256
 
 def build_trajectory(freq=256, tau=0.05, plot_graphs=False):
     # -------------------------------------------------------------------------
@@ -299,7 +299,7 @@ def build_trajectory(freq=256, tau=0.05, plot_graphs=False):
     # acc_offset = np.zeros(3)
     vel = np.zeros(acc.shape)
     for t in range(1,vel.shape[0]):
-        vel[t,:] = vel[t-1,:] + acc[t,:]*samplePeriod
+        vel[t,:] = vel[t-1,:] + acc[t,:]/sample_frequency #*samplePeriod
         if stationary[t] == True:
             vel[t,:] = np.zeros(3)
 
@@ -331,7 +331,7 @@ def build_trajectory(freq=256, tau=0.05, plot_graphs=False):
     # Compute translational position
     pos = np.zeros(vel.shape)
     for t in range(1,pos.shape[0]):
-        pos[t,:] = pos[t-1,:] + vel[t,:]*samplePeriod
+        pos[t,:] = pos[t-1,:] + vel[t,:]/sample_frequency #*samplePeriod
 
     # fig = plt.figure(figsize=(10, 5))
     if plot_graphs: 
@@ -352,7 +352,7 @@ def build_trajectory(freq=256, tau=0.05, plot_graphs=False):
     quatPlot = quat
 
     extraTime = 20
-    onesVector = np.ones(int(extraTime*(1/samplePeriod)))
+    # onesVector = np.ones(int(extraTime*(1/samplePeriod)))
 
     # Create 6 DOF animation
     if plot_graphs: 
@@ -390,7 +390,7 @@ def build_trajectory(freq=256, tau=0.05, plot_graphs=False):
 
 
 if __name__ == "__main__":
-    pos, quat = build_trajectory(freq=100, tau=0.07, plot_graphs=True) # reference data
+    pos, quat = build_trajectory(freq=128, tau=0.06, plot_graphs=True) # reference data
     factors = np.linspace(1.0, 3.0, 10)
     taus = np.linspace(0.05, 0.1, 10)
     print(factors, taus)
