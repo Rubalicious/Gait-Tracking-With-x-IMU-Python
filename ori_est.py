@@ -46,17 +46,17 @@ import pandas as pd
 # stopTime = 26
 # samplePeriod = 1/256
 
-# filePath = 'datasets/stairsAndCorridor'
-# startTime = 5
-# stopTime = 53
-# samplePeriod = 1/256
+filePath = 'datasets/stairsAndCorridor'
+startTime = 5
+stopTime = 53
+samplePeriod = 1/256
 
-filePath = 'datasets/spiralStairs'
-startTime = 4
-stopTime = 47
-samplePeriod = 1.0/256
+# filePath = 'datasets/spiralStairs'
+# startTime = 4
+# stopTime = 47
+# samplePeriod = 1.0/256
 
-def build_trajectory(freq=256, tau=0.05, plot_graphs=False):
+def build_trajectory(freq=256, tau=0.05, alg="Madgwick", plot_graphs=False):
     # -------------------------------------------------------------------------
     # extract data
     xIMUdata = xIMU.xIMUdataClass(filePath, 'InertialMagneticSampleRate', 1/samplePeriod)
@@ -257,10 +257,12 @@ def build_trajectory(freq=256, tau=0.05, plot_graphs=False):
     # initial convergence
     q = np.array([1.0,0.0,0.0,0.0], dtype=np.float64)
     for i in range(2000):
-        # if option == 'IMU':
-        q = madgwick.updateIMU(q, gyr=gyr, acc=acc) #, mag=mag  # updateIMU # updateMARG # update
-        # elif option == 'MARG':
-            # q = ekf.update(q, gyr=gyr, acc=acc, mag=mag)
+        if alg == 'Madgwick':
+            q = madgwick.updateIMU(q, gyr=gyr, acc=acc) #, mag=mag  # updateIMU # updateMARG # update
+        elif alg == 'Mahony':
+            q = mahony.updateIMU(q, gyr=gyr, acc=acc)
+        elif alg == 'Fourati':
+            q = fourati.updateIMU(q, gyr=gyr, acc=acc)
 
     # all data can be returned in this form
     # orientation = Fourati(gyr)
@@ -277,9 +279,15 @@ def build_trajectory(freq=256, tau=0.05, plot_graphs=False):
         acc = np.array([accX[t],accY[t],accZ[t]])
         mag = np.array([magX[t],magY[t],magZ[t]])
         # if option == 'IMU':
-        quat[t,:]=madgwick.updateIMU(q,gyr=gyr,acc=acc) # , mag=mag # updateIMU # updateMARG # update
+        # quat[t,:]=madgwick.updateIMU(q,gyr=gyr,acc=acc) # , mag=mag # updateIMU # updateMARG # update
         # elif option == 'MARG':
             # quat[t,:]=ekf.update(q,gyr=gyr,acc=acc, mag=mag)
+        if alg == 'Madgwick':
+            quat[t,:] = madgwick.updateIMU(q, gyr=gyr, acc=acc) #, mag=mag  # updateIMU # updateMARG # update
+        elif alg == 'Mahony':
+            quat[t,:] = mahony.updateIMU(q, gyr=gyr, acc=acc)
+        elif alg == 'Fourati':
+            quat[t,:] = fourati.updateIMU(q, gyr=gyr, acc=acc)
 
 
     # -------------------------------------------------------------------------
@@ -379,10 +387,10 @@ def build_trajectory(freq=256, tau=0.05, plot_graphs=False):
 
     # -------------------------------------------------------------------------
     # upsample and record data
-    quat = signal.resample(quat, numSamples)
+    # quat = signal.resample(quat, numSamples)
     # data = pd.DataFrame(quat)
     # data.to_csv("./data/quat_freq{}_thresh{}.csv".format(int(sample_frequency), tau))
-    pos = signal.resample(pos, numSamples)
+    # pos = signal.resample(pos, numSamples)
     # data = pd.DataFrame(pos)
     # data.to_csv("./data/pos_freq{}_thresh{}.csv".format(int(sample_frequency), tau))
 
