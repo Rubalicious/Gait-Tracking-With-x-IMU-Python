@@ -46,17 +46,22 @@ import pandas as pd
 # stopTime = 26
 # samplePeriod = 1/256
 
-filePath = 'datasets/stairsAndCorridor'
-startTime = 5
-stopTime = 53
+# filePath = 'datasets/stairsAndCorridor'
+# startTime = 5
+# stopTime = 53
+# samplePeriod = 1/256
+
+filePath = 'datasets/spiralStairs'
+startTime = 4
+stopTime = 47
 samplePeriod = 1/256
 
-# filePath = 'datasets/spiralStairs'
-# startTime = 4
-# stopTime = 47
-# samplePeriod = 1.0/256
+# filePath = './example_dataset5'
+# startTime=0
+# stopTime=100
+# samplePeriod=1/256
 
-def build_trajectory(freq=256, tau=0.05, alg="Madgwick", plot_graphs=False):
+def build_trajectory(freq=256, tau=0.05, alg="Madgwick", plot_graphs=False, use_MARG=False):
     # -------------------------------------------------------------------------
     # extract data
     xIMUdata = xIMU.xIMUdataClass(filePath, 'InertialMagneticSampleRate', 1/samplePeriod)
@@ -85,7 +90,7 @@ def build_trajectory(freq=256, tau=0.05, alg="Madgwick", plot_graphs=False):
     magY = magY[indexSel]
     magZ = magZ[indexSel]
 
-    numSamples = len(time)
+    # numSamples = len(time)
 
     # factor = scaling # factor by which to subsample data
 
@@ -258,11 +263,18 @@ def build_trajectory(freq=256, tau=0.05, alg="Madgwick", plot_graphs=False):
     q = np.array([1.0,0.0,0.0,0.0], dtype=np.float64)
     for i in range(2000):
         if alg == 'Madgwick':
-            q = madgwick.updateIMU(q, gyr=gyr, acc=acc) #, mag=mag  # updateIMU # updateMARG # update
+            if use_MARG:
+                q = madgwick.updateMARG(q, gyr=gyr, acc=acc, mag=mag)
+            else:
+                q = madgwick.updateIMU(q, gyr=gyr, acc=acc) #, mag=mag  # updateIMU # updateMARG # update
         elif alg == 'Mahony':
-            q = mahony.updateIMU(q, gyr=gyr, acc=acc)
+            if use_MARG:
+                q = mahony.updateMARG(q, gyr=gyr, acc=acc, mag=mag)
+            else:
+                q = mahony.updateIMU(q, gyr=gyr, acc=acc)
         elif alg == 'Fourati':
-            q = fourati.updateIMU(q, gyr=gyr, acc=acc)
+            if not use_MARG: mag = []
+            q = fourati.update(q, gyr=gyr, acc=acc, mag=mag)
 
     # all data can be returned in this form
     # orientation = Fourati(gyr)
@@ -283,11 +295,19 @@ def build_trajectory(freq=256, tau=0.05, alg="Madgwick", plot_graphs=False):
         # elif option == 'MARG':
             # quat[t,:]=ekf.update(q,gyr=gyr,acc=acc, mag=mag)
         if alg == 'Madgwick':
-            quat[t,:] = madgwick.updateIMU(q, gyr=gyr, acc=acc) #, mag=mag  # updateIMU # updateMARG # update
+            if use_MARG:
+                quat[t,:] = madgwick.updateMARG(q, gyr=gyr, acc=acc, mag=mag)
+            else:
+                quat[t,:] = madgwick.updateIMU(q, gyr=gyr, acc=acc) #, mag=mag  # updateIMU # updateMARG # update
         elif alg == 'Mahony':
-            quat[t,:] = mahony.updateIMU(q, gyr=gyr, acc=acc)
+            if use_MARG:
+                quat[t,:] = mahony.updateMARG(q, gyr=gyr, acc=acc, mag=mag)
+            else:
+                quat[t,:] = mahony.updateIMU(q, gyr=gyr, acc=acc)
+            
         elif alg == 'Fourati':
-            quat[t,:] = fourati.updateIMU(q, gyr=gyr, acc=acc)
+            if not use_MARG: mag = []
+            quat[t,:] = fourati.update(q, gyr=gyr, acc=acc, mag=mag)
 
 
     # -------------------------------------------------------------------------
@@ -313,7 +333,7 @@ def build_trajectory(freq=256, tau=0.05, alg="Madgwick", plot_graphs=False):
 
     # Compute integral drift during non-stationary periods
     velDrift = np.zeros(vel.shape)
-    stationaryStart = np.where(np.diff(stationary.astype(int)) == -1)[0]+1   #[0]
+    stationaryStart = np.where(np.diff(stationary.astype(int)) == -1)[0]+1  
     stationaryEnd = np.where(np.diff(stationary.astype(int)) == 1)[0]+1
     for i in range(0,stationaryEnd.shape[0]):
         driftRate = vel[stationaryEnd[i]-1,:] / (stationaryEnd[i] - stationaryStart[i])
@@ -377,7 +397,7 @@ def build_trajectory(freq=256, tau=0.05, alg="Madgwick", plot_graphs=False):
         ax.set_xlim(min_,max_)
         ax.set_ylim(min_,max_)
         ax.set_zlim(min_,max_)
-        ax.set_title('trajectory using {}\nand sample frequency {:.2f}\nthreshold used: {:.2f}'.format('madgwick', sample_frequency, tau))
+        ax.set_title('trajectory using {}\nand sample frequency {:.2f}\nthreshold used: {:.2f}'.format(alg, sample_frequency, tau))
         ax.set_xlabel("x position (m)")
         ax.set_ylabel("y position (m)")
         ax.set_zlabel("z position (m)")
@@ -398,8 +418,8 @@ def build_trajectory(freq=256, tau=0.05, alg="Madgwick", plot_graphs=False):
 
 
 if __name__ == "__main__":
-    pos, quat = build_trajectory(freq=128, tau=0.06, plot_graphs=True) # reference data
-    factors = np.linspace(1.0, 3.0, 10)
-    taus = np.linspace(0.05, 0.1, 10)
-    print(factors, taus)
+    pos, quat = build_trajectory(freq=256, tau=0.05, plot_graphs=True, alg="Madgwick") # reference data
+    # factors = np.linspace(1.0, 3.0, 10)
+    # taus = np.linspace(0.05, 0.1, 10)
+    # print(factors, taus)
 
