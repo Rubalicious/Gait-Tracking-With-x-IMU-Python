@@ -51,15 +51,15 @@ import pandas as pd
 # stopTime = 53
 # samplePeriod = 1/256
 
-filePath = 'datasets/spiralStairs'
-startTime = 4
-stopTime = 47
-samplePeriod = 1/256
+# filePath = 'datasets/spiralStairs'
+# startTime = 4
+# stopTime = 47
+# samplePeriod = 1/256
 
-# filePath = './example_dataset5'
-# startTime=0
-# stopTime=100
-# samplePeriod=1/256
+filePath = './example_Data'
+startTime=0
+stopTime=100
+samplePeriod=1/256
 
 def build_trajectory(freq=256, tau=0.05, alg="Madgwick", plot_graphs=False, use_MARG=False):
     # -------------------------------------------------------------------------
@@ -335,6 +335,8 @@ def build_trajectory(freq=256, tau=0.05, alg="Madgwick", plot_graphs=False, use_
     velDrift = np.zeros(vel.shape)
     stationaryStart = np.where(np.diff(stationary.astype(int)) == -1)[0]+1  
     stationaryEnd = np.where(np.diff(stationary.astype(int)) == 1)[0]+1
+    # print(stationaryStart, stationaryEnd)
+    # quit()
     for i in range(0,stationaryEnd.shape[0]):
         driftRate = vel[stationaryEnd[i]-1,:] / (stationaryEnd[i] - stationaryStart[i])
         enum = np.arange(0,stationaryEnd[i]-stationaryStart[i])
@@ -414,12 +416,17 @@ def build_trajectory(freq=256, tau=0.05, alg="Madgwick", plot_graphs=False, use_
     # data = pd.DataFrame(pos)
     # data.to_csv("./data/pos_freq{}_thresh{}.csv".format(int(sample_frequency), tau))
 
-    return pos, quat
+    return pos, quat, vel
 
 
 if __name__ == "__main__":
-    pos, quat = build_trajectory(freq=256, tau=0.05, plot_graphs=True, alg="Madgwick") # reference data
+    pos, quat, vel = build_trajectory(freq=256, tau=50, plot_graphs=True, alg="Madgwick") # reference data
     # factors = np.linspace(1.0, 3.0, 10)
     # taus = np.linspace(0.05, 0.1, 10)
     # print(factors, taus)
+
+    arclength = 0
+    for vx,vy,vz in vel:
+        arclength += np.sqrt(vx**2+vy**2+vz**2)
+    print("arclength of trajectory = {}".format(arclength))
 
