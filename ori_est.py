@@ -420,7 +420,7 @@ def build_trajectory(freq=256, tau=0.05, alg="Madgwick", plot_graphs=False, use_
 
 
 if __name__ == "__main__":
-    pos, quat, vel = build_trajectory(freq=256, tau=50, plot_graphs=True, alg="Madgwick") # reference data
+    pos, quat, vel = build_trajectory(freq=256, tau=0.05, plot_graphs=True, alg="Madgwick") # reference data
     # factors = np.linspace(1.0, 3.0, 10)
     # taus = np.linspace(0.05, 0.1, 10)
     # print(factors, taus)
