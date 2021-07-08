@@ -56,12 +56,12 @@ import pandas as pd
 # stopTime = 47
 # samplePeriod = 1/256
 
-filePath = './example_Data'
+filePath = './experiment_dataset2'
 startTime=0
-stopTime=100
+stopTime=200
 samplePeriod=1/256
 
-def build_trajectory(freq=256, tau=0.05, alg="Madgwick", plot_graphs=False, use_MARG=False):
+def build_trajectory(freq=256, tau=0.05, alg="Madgwick", plot_graphs=False, use_MARG=False, subsample=False):
     # -------------------------------------------------------------------------
     # extract data
     xIMUdata = xIMU.xIMUdataClass(filePath, 'InertialMagneticSampleRate', 1/samplePeriod)
@@ -107,19 +107,20 @@ def build_trajectory(freq=256, tau=0.05, alg="Madgwick", plot_graphs=False, use_
 
     # -------------------------------------------------------------------------
     # subsampling accX_ss = accX_subsampled
-    time = signal.resample(time, N)
+    if subsample:
+        time = signal.resample(time, N)
 
-    accX = signal.resample(accX, N)
-    accY = signal.resample(accY, N)
-    accZ = signal.resample(accZ, N)
+        accX = signal.resample(accX, N)
+        accY = signal.resample(accY, N)
+        accZ = signal.resample(accZ, N)
 
-    gyrX = signal.resample(gyrX, N)
-    gyrY = signal.resample(gyrY, N)
-    gyrZ = signal.resample(gyrZ, N)
+        gyrX = signal.resample(gyrX, N)
+        gyrY = signal.resample(gyrY, N)
+        gyrZ = signal.resample(gyrZ, N)
 
-    magX = signal.resample(magX, N)
-    magY = signal.resample(magY, N)
-    magZ = signal.resample(magZ, N)
+        magX = signal.resample(magX, N)
+        magY = signal.resample(magY, N)
+        magZ = signal.resample(magZ, N)
 
     # -------------------------------------------------------------------------
     # signal processing
@@ -173,20 +174,20 @@ def build_trajectory(freq=256, tau=0.05, alg="Madgwick", plot_graphs=False, use_
     # denoising magentic field strength data using total variation
     # magX = restoration.denoise_tv_bregman(magX, weight=.7)
     # magX = restoration.denoise_tv_chambolle(magX, weight=.5)
-    Iop = pylops.Identity(N)
-    y = Iop*magX
+    # Iop = pylops.Identity(N)
+    # y = Iop*magX
 
-    Dop = pylops.FirstDerivative(N, edge=True, kind='backward')
-    mu = 0.1     #0.01
-    lamda = 1   #0.3
-    niter_out = 50 #50
-    niter_in = 3
+    # Dop = pylops.FirstDerivative(N, edge=True, kind='backward')
+    # mu = 0.1     #0.01
+    # lamda = 1   #0.3
+    # niter_out = 50 #50
+    # niter_in = 3
 
-    xinv, niter = \
-        pylops.optimization.sparsity.SplitBregman(Iop, [Dop], y, niter_out,
-                                                  niter_in, mu=mu, epsRL1s=[lamda],
-                                                  tol=1e-4, tau=1.,
-                                                  **dict(iter_lim=30, damp=1e-10))
+    # xinv, niter = \
+    #     pylops.optimization.sparsity.SplitBregman(Iop, [Dop], y, niter_out,
+    #                                               niter_in, mu=mu, epsRL1s=[lamda],
+    #                                               tol=1e-4, tau=1.,
+    #                                               **dict(iter_lim=30, damp=1e-10))
 
 
     # Threshold detection
@@ -335,13 +336,14 @@ def build_trajectory(freq=256, tau=0.05, alg="Madgwick", plot_graphs=False, use_
     velDrift = np.zeros(vel.shape)
     stationaryStart = np.where(np.diff(stationary.astype(int)) == -1)[0]+1  
     stationaryEnd = np.where(np.diff(stationary.astype(int)) == 1)[0]+1
-    # print(stationaryStart, stationaryEnd)
+    print(stationaryStart, stationaryEnd)
     # quit()
-    for i in range(0,stationaryEnd.shape[0]):
-        driftRate = vel[stationaryEnd[i]-1,:] / (stationaryEnd[i] - stationaryStart[i])
-        enum = np.arange(0,stationaryEnd[i]-stationaryStart[i])
-        drift = np.array([enum*driftRate[0], enum*driftRate[1], enum*driftRate[2]]).T
-        velDrift[stationaryStart[i]:stationaryEnd[i],:] = drift
+    if stationaryStart:
+        for i in range(0,stationaryEnd.shape[0]):
+            driftRate = vel[stationaryEnd[i]-1,:] / (stationaryEnd[i] - stationaryStart[i])
+            enum = np.arange(0,stationaryEnd[i]-stationaryStart[i])
+            drift = np.array([enum*driftRate[0], enum*driftRate[1], enum*driftRate[2]]).T
+            velDrift[stationaryStart[i]:stationaryEnd[i],:] = drift
 
     # Remove integral drift
     vel = vel - velDrift
@@ -420,7 +422,7 @@ def build_trajectory(freq=256, tau=0.05, alg="Madgwick", plot_graphs=False, use_
 
 
 if __name__ == "__main__":
-    pos, quat, vel = build_trajectory(freq=256, tau=0.05, plot_graphs=True, alg="Madgwick") # reference data
+    pos, quat, vel = build_trajectory(freq=2, tau=0.00, plot_graphs=True, alg="Madgwick", use_MARG=True) # reference data
     # factors = np.linspace(1.0, 3.0, 10)
     # taus = np.linspace(0.05, 0.1, 10)
     # print(factors, taus)
