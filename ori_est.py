@@ -1,17 +1,18 @@
 import ahrs
-from ahrs import Quaternion
+# from ahrs import Quaternion
 from ahrs.common.orientation import q_prod, q_conj, acc2q, am2q, q2R, q_rot
-import pyquaternion
+# import pyquaternion
 import ximu_python_library.xIMUdataClass as xIMU
 import numpy as np
 from scipy import signal
 from matplotlib import pyplot as plt
-from mpl_toolkits.mplot3d import Axes3D
+# from mpl_toolkits.mplot3d import Axes3D
 # import argparse
-from ahrs import QuaternionArray
-from skimage import restoration, filters
-import pylops
+# from ahrs import QuaternionArray
+# from skimage import restoration, filters
+# import pylops
 import pandas as pd
+import os
 
 # option = 'IMU' # or 'MARG'
 # parser = argparse.ArgumentParser()
@@ -56,14 +57,58 @@ import pandas as pd
 # stopTime = 47
 # samplePeriod = 1/256
 
-filePath = './experiment_dataset2'
+index = 3
+filePath = './experiment_dataset{}'.format(index)
 startTime=0
 stopTime=200
 samplePeriod=1/256
 
-def build_trajectory(freq=256, tau=0.05, alg="Madgwick", plot_graphs=False, use_MARG=False, subsample=False):
-    # -------------------------------------------------------------------------
-    # extract data
+def extract_sensortile_data():
+    dir = "./datasets/Exp{}/".format(index)
+    files = os.listdir(dir)
+
+    # extract data and skip first three rows
+    acc_data = pd.read_csv(dir+files[0], skiprows=3) # add skiprows=3 for proper file formatting
+    gyr_data = pd.read_csv(dir+files[1], skiprows=3)
+    mag_data = pd.read_csv(dir+files[2], skiprows=3)
+
+    # extract date information
+    # date = acc_data.Date
+    # df = pd.Series(date, dtype=np.datetime64)
+
+    # compute sample frequency
+    acc_data['Date']=pd.to_datetime(acc_data['Date'])
+    v_sample_rate = acc_data.groupby(acc_data.Date.dt.second).count().Date.median()
+    
+    # add cumulative lapsed time column
+    acc_data['TimeDiff']=(acc_data.Date-acc_data.Date[0])
+    acc_data['TimeDiff']=acc_data['TimeDiff']/ np.timedelta64(1, 's')
+    
+    # extract only last three columns (X, Y, Z) of data 
+    acc_data = acc_data[acc_data.columns[-3:]]
+    gyr_data = gyr_data[gyr_data.columns[-3:]]
+    mag_data = mag_data[mag_data.columns[-3:]]
+
+    # convert into correct units
+    acc_data = acc_data/1000 # [mg] --> [g]
+
+    # remove effect of gravity to last column only
+    # acc_data[acc_data.columns[1]] -= 1
+
+    # gyr_data = gyr_data/1000
+    mag_data = mag_data/1000 # [mGa] --> [G]
+
+    data = pd.concat([gyr_data, acc_data, mag_data], axis=1)
+
+    header = ["Gyroscope X (deg/s)", "Gyroscope Y (deg/s)", "Gyroscope Z (deg/s)", "Accelerometer X (g)", "Accelerometer Y (g)", "Accelerometer Z (g)", "Magnetometer X (G)", "Magnetometer Y (G)", "Magnetometer Z (G)"]
+
+    data = data[1:]
+    data.columns = header
+    data.to_csv("experiment_dataset{}_CalInertialAndMag.csv".format(index))
+    print("dataset expeiment_dataset{}_CalInertialAndMag.csv has been created".format(index))
+    return v_sample_rate, data
+
+def extract_data(filePath):
     xIMUdata = xIMU.xIMUdataClass(filePath, 'InertialMagneticSampleRate', 1/samplePeriod)
     time = xIMUdata.CalInertialAndMagneticData.Time
     gyrX = xIMUdata.CalInertialAndMagneticData.gyroscope[:,0]
@@ -89,6 +134,14 @@ def build_trajectory(freq=256, tau=0.05, alg="Madgwick", plot_graphs=False, use_
     magX = magX[indexSel]
     magY = magY[indexSel]
     magZ = magZ[indexSel]
+    return time, gyrX, gyrY, gyrZ, accX, accY, accZ, magX, magY, magZ  
+
+def build_trajectory(freq=256, tau=0.05, alg="Madgwick", plot_graphs=False, use_MARG=False, subsample=False):
+    # -------------------------------------------------------------------------
+    # extract data
+    sample_frequency, _ = extract_sensortile_data()
+    # sample_frequency = float(freq)
+    time, gyrX, gyrY, gyrZ, accX, accY, accZ, magX, magY, magZ = extract_data(filePath)
 
     # numSamples = len(time)
 
@@ -97,8 +150,8 @@ def build_trajectory(freq=256, tau=0.05, alg="Madgwick", plot_graphs=False, use_
     T = len(time)*samplePeriod # total time
     # N = int((T/samplePeriod)/factor)
     # sample_frequency = N/T
-    sample_frequency=float(freq)
-    N = int(sample_frequency*T)
+    # sample_frequency=float(freq)
+    N = len(time)
     # print("test new sample frequency is {} Hz".format(sample_frequency))
 
 
@@ -154,19 +207,19 @@ def build_trajectory(freq=256, tau=0.05, alg="Madgwick", plot_graphs=False, use_
 
     # Ruby's contribution
     filtCutOff_mag = 2
-    bm, am = signal.butter(1, (2*filtCutOff_mag)/(1/samplePeriod), 'lowpass') #'lowpass'
-    mag_magFilt = signal.filtfilt(bm, am, mag_mag, padtype = 'odd', padlen=3*(max(len(bm),len(am))-1))
+    # bm, am = signal.butter(1, (2*filtCutOff_mag)/(1/samplePeriod), 'lowpass') #'lowpass'
+    # mag_magFilt = signal.filtfilt(bm, am, mag_mag, padtype = 'odd', padlen=3*(max(len(bm),len(am))-1))
 
     b,a = signal.butter(1, (2*filtCutOff_mag)/(1/samplePeriod), 'lowpass')
-    magX_Filt = signal.filtfilt(b, a, magX, padtype = 'odd', padlen=3*(max(len(b),len(a))-1))
+    # magX_Filt = signal.filtfilt(b, a, magX, padtype = 'odd', padlen=3*(max(len(b),len(a))-1))
 
-    mag_der = np.diff(magX, n=1)
+    # mag_der = np.diff(magX, n=1)
 
     filtCutOff_mag = 10
-    bm, am = signal.butter(1, (2*filtCutOff_mag)/(1/samplePeriod), 'lowpass') #'lowpass'
-    mag_derFilt = signal.filtfilt(bm, am, mag_der, padtype = 'odd', padlen=3*(max(len(bm),len(am))-1))
+    # bm, am = signal.butter(1, (2*filtCutOff_mag)/(1/samplePeriod), 'lowpass') #'lowpass'
+    # mag_derFilt = signal.filtfilt(bm, am, mag_der, padtype = 'odd', padlen=3*(max(len(bm),len(am))-1))
 
-    der_threshold = .2*(np.abs(mag_derFilt) > .005)
+    # der_threshold = .2*(np.abs(mag_derFilt) > .005)
 
 
 
@@ -192,7 +245,8 @@ def build_trajectory(freq=256, tau=0.05, alg="Madgwick", plot_graphs=False, use_
 
     # Threshold detection
     # tau = 0.1
-    stationary = acc_magFilt < tau # originally set to 0.05
+    # tauY = .9
+    stationary = acc_magFilt < tau # and gyrY < tauY # originally set to 0.05
 
     stationary_gyr = gyr_mag < 40
 
@@ -276,6 +330,9 @@ def build_trajectory(freq=256, tau=0.05, alg="Madgwick", plot_graphs=False, use_
         elif alg == 'Fourati':
             if not use_MARG: mag = []
             q = fourati.update(q, gyr=gyr, acc=acc, mag=mag)
+        elif alg == 'EKF':
+            if not use_MARG: mag = []
+            q = ekf.update(q, gyr=gyr, acc=acc, mag=mag)
 
     # all data can be returned in this form
     # orientation = Fourati(gyr)
@@ -305,10 +362,12 @@ def build_trajectory(freq=256, tau=0.05, alg="Madgwick", plot_graphs=False, use_
                 quat[t,:] = mahony.updateMARG(q, gyr=gyr, acc=acc, mag=mag)
             else:
                 quat[t,:] = mahony.updateIMU(q, gyr=gyr, acc=acc)
-            
         elif alg == 'Fourati':
             if not use_MARG: mag = []
             quat[t,:] = fourati.update(q, gyr=gyr, acc=acc, mag=mag)
+        elif alg == 'EKF':
+            if not use_MARG: mag = []
+            quat[t,:] = ekf.update(q, gyr=gyr, acc=acc, mag=mag)
 
 
     # -------------------------------------------------------------------------
@@ -319,8 +378,8 @@ def build_trajectory(freq=256, tau=0.05, alg="Madgwick", plot_graphs=False, use_
     for x,y,z,q in zip(accX,accY,accZ,quat):
         acc.append(q_rot(q_conj(q), np.array([ x, y, z])))
     acc = np.array(acc)
-    acc = acc - np.array([0,0,1])
-    acc = acc * 9.81
+    # acc -= np.array([0,0,1])
+    # acc *= 9.81 # converting to units of m/s^2
 
     # Compute translational velocities
     # acc[:,2] = acc[:,2] - 9.81
@@ -328,7 +387,8 @@ def build_trajectory(freq=256, tau=0.05, alg="Madgwick", plot_graphs=False, use_
     # acc_offset = np.zeros(3)
     vel = np.zeros(acc.shape)
     for t in range(1,vel.shape[0]):
-        vel[t,:] = vel[t-1,:] + acc[t,:]/sample_frequency #*samplePeriod
+        # vel[t,:] = vel[t-1,:] + acc[t,:]/sample_frequency #*samplePeriod
+        vel[t,:] = vel[t-1,:] + (acc[t,:]+acc[t-1,:])/(2*sample_frequency) # trapezoisdal rule
         if stationary[t] == True:
             vel[t,:] = np.zeros(3)
 
@@ -336,15 +396,14 @@ def build_trajectory(freq=256, tau=0.05, alg="Madgwick", plot_graphs=False, use_
     velDrift = np.zeros(vel.shape)
     stationaryStart = np.where(np.diff(stationary.astype(int)) == -1)[0]+1  
     stationaryEnd = np.where(np.diff(stationary.astype(int)) == 1)[0]+1
-    print(stationaryStart, stationaryEnd)
-    # quit()
-    if stationaryStart:
-        for i in range(0,stationaryEnd.shape[0]):
-            driftRate = vel[stationaryEnd[i]-1,:] / (stationaryEnd[i] - stationaryStart[i])
-            enum = np.arange(0,stationaryEnd[i]-stationaryStart[i])
-            drift = np.array([enum*driftRate[0], enum*driftRate[1], enum*driftRate[2]]).T
-            velDrift[stationaryStart[i]:stationaryEnd[i],:] = drift
 
+    # if not stationaryStart.any():
+    for i in range(0,stationaryEnd.shape[0]):
+        driftRate = vel[stationaryEnd[i]-1,:] / (stationaryEnd[i] - stationaryStart[i])
+        enum = np.arange(0,stationaryEnd[i]-stationaryStart[i])
+        drift = np.array([enum*driftRate[0], enum*driftRate[1], enum*driftRate[2]]).T
+        velDrift[stationaryStart[i]:stationaryEnd[i],:] = drift
+    
     # Remove integral drift
     vel = vel - velDrift
     if plot_graphs: 
@@ -363,7 +422,8 @@ def build_trajectory(freq=256, tau=0.05, alg="Madgwick", plot_graphs=False, use_
     # Compute translational position
     pos = np.zeros(vel.shape)
     for t in range(1,pos.shape[0]):
-        pos[t,:] = pos[t-1,:] + vel[t,:]/sample_frequency #*samplePeriod
+        # pos[t,:] = pos[t-1,:] + vel[t,:]/sample_frequency #*samplePeriod
+        pos[t, :] = pos[t-1,:] + (vel[t, :]+vel[t-1,:])/(2*sample_frequency)
 
     # fig = plt.figure(figsize=(10, 5))
     if plot_graphs: 
@@ -422,11 +482,12 @@ def build_trajectory(freq=256, tau=0.05, alg="Madgwick", plot_graphs=False, use_
 
 
 if __name__ == "__main__":
-    pos, quat, vel = build_trajectory(freq=2, tau=0.00, plot_graphs=True, alg="Madgwick", use_MARG=True) # reference data
+    pos, quat, vel = build_trajectory(freq=256, tau=0.0, plot_graphs=True, alg="Madgwick", use_MARG=True) # reference data
     # factors = np.linspace(1.0, 3.0, 10)
     # taus = np.linspace(0.05, 0.1, 10)
     # print(factors, taus)
 
+    vel 
     arclength = 0
     for vx,vy,vz in vel:
         arclength += np.sqrt(vx**2+vy**2+vz**2)
