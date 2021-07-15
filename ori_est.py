@@ -65,15 +65,22 @@ import os
 # samplePeriod=1/256
 
 # index = 6
-filePath = './str8_line_const_vel'
+# filePath = './str8_line_const_vel'
+# startTime=0
+# stopTime=200
+# samplePeriod=1/256
+
+index = 2
+filePath = './v2_track{}'.format(index)
 startTime=0
 stopTime=200
 samplePeriod=1/256
 
 def extract_sensortile_data():
     # dir = "./datasets/Exp{}/".format(index)
-    dir = "./datasets/Str8_line_const_vel/"
+    # dir = "./datasets/Str8_line_const_vel/"
     # dir = "./datasets/Str8_line_varbl_vel/"
+    dir = "./datasets/v2_track{}/".format(index)
     files = os.listdir(dir)
 
     # extract data and skip first three rows
@@ -117,7 +124,8 @@ def extract_sensortile_data():
 
     data = data[1:]
     data.columns = header
-    data.to_csv("str8_line_const_vel_CalInertialAndMag.csv")
+    data.to_csv("v2_track{}_CalInertialAndMag.csv".format(index))
+    # data.to_csv("str8_line_const_vel_CalInertialAndMag.csv")
     # data.to_csv("str8_line_varbl_vel_CalInertialAndMag.csv")
     # data.to_csv("experiment_dataset{}_CalInertialAndMag.csv".format(index))
     # print("dataset str8_line_const_vel_CalInertialAndMag.csv has been created".format(index))
@@ -215,7 +223,7 @@ def plot_pos_vel_data(time, pos, vel, sample_frequency):
     ax2.set_ylabel("position (m)")
     plt.show(block=False)
 
-def plot_trajectory(posPlot, alg, sample_frequency, tau):
+def plot_trajectory(posPlot, vel, alg, sample_frequency, tau):
     fig = plt.figure(figsize=(7, 7))
     ax = fig.add_subplot(111, projection='3d') # Axe3D object
 
@@ -224,11 +232,12 @@ def plot_trajectory(posPlot, alg, sample_frequency, tau):
     #     A = Quaternion(quat[i]).to_DCM()
     #     ax.quiver(posPlot[i,0],posPlot[i,1],posPlot[i,2], A[:, 0], A[:,1], A[:, 2], color=['r','g','b']) # modify this to quiver.
     # print(quatPlot[-1])
+    arclength = compute_arclength(vel)
     min_, max_ = np.min(np.min(posPlot,axis=0)), np.max(np.max(posPlot,axis=0))
     ax.set_xlim(min_,max_)
     ax.set_ylim(min_,max_)
     ax.set_zlim(min_,max_)
-    ax.set_title('trajectory using {}\nand sample frequency {:.2f}\nthreshold used: {:.4f}'.format(alg, sample_frequency, tau))
+    ax.set_title('Used {} with sample frequency {:.2f} [Hz]\nthreshold used: {:.4f} [m/s^2]\narclength={:.4f} [m]'.format(alg, sample_frequency, tau, arclength))
     ax.set_xlabel("x position (m)")
     ax.set_ylabel("y position (m)")
     ax.set_zlabel("z position (m)")
@@ -236,7 +245,16 @@ def plot_trajectory(posPlot, alg, sample_frequency, tau):
     plt.show(block=False)
     plt.show()
 
+def compute_arclength(vel):
+    global samplePeriod
+    arclength = 0
+    for vx,vy,vz in vel:
+        arclength += np.sqrt(vx**2+vy**2+vz**2)
+    arclength *= samplePeriod
+    return arclength
+
 def build_trajectory(freq=256, tau=0.05, alg="Madgwick", plot_graphs=False, use_MARG=False, subsample=False):
+    global samplePeriod
     # -------------------------------------------------------------------------
     # extract data
     sample_frequency, data = extract_sensortile_data()
@@ -360,6 +378,9 @@ def build_trajectory(freq=256, tau=0.05, alg="Madgwick", plot_graphs=False, use_
         elif alg == 'EKF':
             if not use_MARG: mag = []
             q = ekf.update(q, gyr=gyr, acc=acc, mag=mag)
+        else:
+            raise("Algorithm not defined. Choose between: Madgwick, Mahony, Fourati, and EKF.")
+            quit()
 
     # all data can be returned in this form
     # orientation = Fourati(gyr)
@@ -405,10 +426,12 @@ def build_trajectory(freq=256, tau=0.05, alg="Madgwick", plot_graphs=False, use_
         acc.append(q_rot(q_conj(q), np.array([ x, y, z]))) 
         # acc.append()
     acc = np.array(acc)
+    print("earth frame acceleration vector time series shape is {}".format(np.shape(acc)))
     acc -= np.array([0,0,1])
     acc *= 9.81 # converting to units of m/s^2
 
     # plot acc vectors in earth frame.
+    
 
     # Compute translational velocities
     # acc[:,2] = acc[:,2] - 9.81
@@ -452,7 +475,7 @@ def build_trajectory(freq=256, tau=0.05, alg="Madgwick", plot_graphs=False, use_
 
     # Create 6 DOF animation
     if plot_graphs: 
-        plot_trajectory(pos, alg, sample_frequency, tau)
+        plot_trajectory(pos, vel, alg, sample_frequency, tau)
 
     # -------------------------------------------------------------------------
     # upsample and record data
@@ -469,7 +492,7 @@ def build_trajectory(freq=256, tau=0.05, alg="Madgwick", plot_graphs=False, use_
 if __name__ == "__main__":
     pos, quat, vel = build_trajectory(
         freq=256,
-        tau=0.005,
+        tau=0.01,
         plot_graphs=True, 
         alg="Madgwick",
         use_MARG=True
@@ -479,9 +502,8 @@ if __name__ == "__main__":
     # print(factors, taus)
 
     # vel 
-    arclength = 0
-    for vx,vy,vz in vel:
-        arclength += np.sqrt(vx**2+vy**2+vz**2)
+    
+    arclength = compute_arclength(vel)
     print("arclength of trajectory = {}".format(arclength))
 
 
