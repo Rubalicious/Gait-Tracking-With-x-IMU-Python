@@ -70,11 +70,44 @@ import os
 # stopTime=200
 # samplePeriod=1/256
 
-index = 1
-filePath = './v4_track{}'.format(index)
+# index = 1
+# filePath = './v4_track{}'.format(index)
+# startTime=0
+# stopTime=500
+# samplePeriod=1/256
+
+# index = 1
+filePath = './july23test'
 startTime=0
 stopTime=500
-samplePeriod=1/256
+# samplePeriod=1/256
+
+def format_grace_st(filePath):
+    # input the data file from Grace's ST
+    # output: saved formatted data and sampling frequency of data
+    data = pd.read_csv("./datasets/{}.csv".format(filePath))
+
+
+    acc = data[['accX[mg]', 'accY[mg]', 'accZ[mg]']]
+    gyr = data[['gyroX[mdps]', 'gyroY[mdps]', 'gyroZ[mdps]']]
+    mag = data[['magX[mG]', 'magY[mG]','magZ[mG]']]
+
+    # extract sampling rate, v_sample_rate
+    date = data[data.columns[-1]]
+    date = pd.to_datetime(date)
+    v_sample_rate = date.groupby(date.dt.second).count().median()
+
+    # reorganize data into proper format
+    formatted_data = pd.concat([gyr, acc, mag], axis=1)
+
+    # unit conversion
+    formatted_data /= 1000
+
+    # relabel header and save to file
+    header = ["Gyroscope X (deg/s)", "Gyroscope Y (deg/s)", "Gyroscope Z (deg/s)", "Accelerometer X (g)", "Accelerometer Y (g)", "Accelerometer Z (g)", "Magnetometer X (G)", "Magnetometer Y (G)", "Magnetometer Z (G)"]
+    formatted_data.columns = header
+    formatted_data.to_csv("{}_CalInertialAndMag.csv".format(filePath))
+    return v_sample_rate, formatted_data
 
 def extract_sensortile_data():
     # dir = "./datasets/Exp{}/".format(index)
@@ -221,7 +254,7 @@ def plot_pos_vel_data(time, pos, vel, sample_frequency):
     ax2.set_ylabel("position (m)")
     plt.show(block=False)
 
-def plot_trajectory(posPlot, vel, alg, sample_frequency, tau):
+def plot_trajectory(posPlot, vel, alg, sample_frequency, tau, use_MARG):
     fig = plt.figure(figsize=(7, 7))
     ax = fig.add_subplot(111, projection='3d') # Axe3D object
 
@@ -235,7 +268,9 @@ def plot_trajectory(posPlot, vel, alg, sample_frequency, tau):
     ax.set_xlim(min_,max_)
     ax.set_ylim(min_,max_)
     ax.set_zlim(min_,max_)
-    ax.set_title('Used {} with sample frequency {:.2f} [Hz]\nthreshold used: {:.4f} [m/s^2]\narclength={:.4f} [m]'.format(alg, sample_frequency, tau, arclength))
+    if use_MARG: alg +=" w/ MARG"
+    else:   alg += " w/ IMU" 
+    ax.set_title("Alg: {}, sample frequency {:.2f} [Hz]\nthreshold: {:.3f} [m/s^2], arclength={:.4f} [m]".format(alg, sample_frequency, tau, arclength))
     ax.set_xlabel("x position (m)")
     ax.set_ylabel("y position (m)")
     ax.set_zlabel("z position (m)")
@@ -274,7 +309,8 @@ def build_trajectory(freq=256, tau=0.05, alg="Madgwick", plot_graphs=False, use_
     global samplePeriod
     # -------------------------------------------------------------------------
     # extract data
-    sample_frequency, data = extract_sensortile_data()
+    sample_frequency, data = format_grace_st(filePath)
+    # sample_frequency, data = extract_sensortile_data()
     samplePeriod = 1/sample_frequency
     # print(data[data.columns[3:6]])
     # quit()
@@ -491,7 +527,7 @@ def build_trajectory(freq=256, tau=0.05, alg="Madgwick", plot_graphs=False, use_
 
     # Create 6 DOF animation
     if plot_graphs: 
-        plot_trajectory(pos, vel, alg, sample_frequency, tau)
+        plot_trajectory(pos, vel, alg, sample_frequency, tau, use_MARG)
 
     # -------------------------------------------------------------------------
     # upsample and record data
@@ -507,8 +543,7 @@ def build_trajectory(freq=256, tau=0.05, alg="Madgwick", plot_graphs=False, use_
 
 if __name__ == "__main__":
     pos, quat, vel = build_trajectory(
-        freq=256,
-        tau=0.025,
+        tau=0.003,
         plot_graphs=True, 
         alg="Madgwick",
         use_MARG=False
