@@ -77,7 +77,7 @@ import os
 # samplePeriod=1/256
 
 # index = 1
-filePath = './july23test'
+filePath = './output'
 startTime=0
 stopTime=500
 # samplePeriod=1/256
@@ -305,106 +305,21 @@ def plot_earth_frame_acc(time, acc, accX, accY, accZ):
     ax2.set_ylabel("accelerometer (g)")
     ax2.legend(["x","y","z"])
 
-def build_trajectory(freq=256, tau=0.05, alg="Madgwick", plot_graphs=False, use_MARG=False, subsample=False):
-    global samplePeriod
-    # -------------------------------------------------------------------------
-    # extract data
-    sample_frequency, data = format_grace_st(filePath)
-    # sample_frequency, data = extract_sensortile_data()
-    samplePeriod = 1/sample_frequency
-    # print(data[data.columns[3:6]])
-    # quit()
-    # sample_frequency = float(freq)
-    time, gyrX, gyrY, gyrZ, accX, accY, accZ, magX, magY, magZ = extract_data(filePath)
+def compute_quaternions(time, acc_data, gyr_data, mag_data, sample_frequency, stationary, alg, use_MARG):
+    accX, accY, accZ = acc_data
+    gyrX, gyrY, gyrZ = gyr_data
+    magX, magY, magZ = mag_data
 
-    # unit testing
-    # assert((data[data.columns[3]] == accX).all)
-    # assert((data[data.columns[4]] == accY).all)
-    # assert((data[data.columns[5]] == accZ).all)
-    # numSamples = len(time)
-
-    # factor = scaling # factor by which to subsample data
-
-    T = len(time)*samplePeriod # total time
-    # N = int((T/samplePeriod)/factor)
-    # sample_frequency = N/T
-    # sample_frequency=float(freq)
-    N = len(time)
-    # print("test new sample frequency is {} Hz".format(sample_frequency))
-
-
-    # print("length of time series is {}".format(N))
-    # print("threshold = {}".format(float(tau)))
-
-    # -------------------------------------------------------------------------
-    # subsampling accX_ss = accX_subsampled
-    if subsample:
-        time = signal.resample(time, N)
-
-        accX = signal.resample(accX, N)
-        accY = signal.resample(accY, N)
-        accZ = signal.resample(accZ, N)
-
-        gyrX = signal.resample(gyrX, N)
-        gyrY = signal.resample(gyrY, N)
-        gyrZ = signal.resample(gyrZ, N)
-
-        magX = signal.resample(magX, N)
-        magY = signal.resample(magY, N)
-        magZ = signal.resample(magZ, N)
-
-    # -------------------------------------------------------------------------
-    # signal processing
-
-    # Compute accelerometer magnitude
-    acc_mag = np.sqrt(accX*accX+accY*accY+accZ*accZ)
-
-    # Compute magentometer magnitude
-    mag_mag = np.sqrt(magX*magX+magY*magY+magZ*magZ)
-
-    # Compute gyroscope magnitude
-    gyr_mag = np.sqrt(gyrX*gyrX+gyrY*gyrY+gyrZ*gyrZ)
-
-    # HP filter accelerometer data
-    # Hodrick-Prescott filter: removes cyclical components of signal
-    filtCutOff = 0.001
-    b, a = signal.butter(1, (2*filtCutOff)/(1/samplePeriod), 'highpass')
-    acc_magFilt = signal.filtfilt(b, a, acc_mag, padtype = 'odd', padlen=3*(max(len(b),len(a))-1))
-
-    # Compute absolute value
-    acc_magFilt = np.abs(acc_magFilt)
-
-    # LP filter accelerometer data
-    # Low-Pass filter: use butterworth filter to filter out high frequency data
-    filtCutOff = 5
-    b, a = signal.butter(1, (2*filtCutOff)/(1/samplePeriod), 'lowpass') #'lowpass'
-    acc_magFilt = signal.filtfilt(b, a, acc_magFilt, padtype = 'odd', padlen=3*(max(len(b),len(a))-1))
-
-    # -------------------------------------------------------------------------
-    # Threshold detection
-    # tau = 0.1
-    # tauY = .9
-    stationary = acc_magFilt < tau # and gyrY < tauY # originally set to 0.05
-
-    # stationary_gyr = gyr_mag < 40
-
-
-    if plot_graphs: 
-        plot_raw_data()
-
-
-    #------------------------------------------------------------------------------------
-    # Compute orientation
     quat  = np.zeros((time.size, 4), dtype=np.float64)
 
     # initial convergence
-    initPeriod = 2
+    initPeriod = 0 # was 2
     indexSel = time<=time[0]+initPeriod
     gyr = np.zeros(3, dtype=np.float64)
     acc = np.array([np.mean(accX[indexSel]), np.mean(accY[indexSel]), np.mean(accZ[indexSel])])
     mag = np.array([np.mean(magX[indexSel]), np.mean(magY[indexSel]), np.mean(magZ[indexSel])])
 
-    # types of filters
+     # types of filters
     mahony = ahrs.filters.Mahony(Kp=1, Ki=0, KpInit=1, Dt=1/sample_frequency)
     madgwick = ahrs.filters.Madgwick(Dt=1/sample_frequency)
     aqua = ahrs.filters.AQUA(Dt=1/sample_frequency)
@@ -468,6 +383,112 @@ def build_trajectory(freq=256, tau=0.05, alg="Madgwick", plot_graphs=False, use_
         elif alg == 'EKF':
             if not use_MARG: mag = []
             quat[t,:] = ekf.update(q, gyr=gyr, acc=acc, mag=mag)
+    return quat
+
+
+# class OriEst():
+#     def __init__(self, filePath) -> None:
+#         time, gyrX, gyrY, gyrZ, accX, accY, accZ, magX, magY, magZ = extract_data(filePath)
+#         self.time = time
+#         self.gyrX = gyrX
+#         self.gyrY = gyrY
+#         self.
+        
+
+def build_trajectory(freq=256, tau=0.05, alg="Madgwick", plot_graphs=False, use_MARG=False, subsample=False):
+    global samplePeriod
+    # -------------------------------------------------------------------------
+    # extract data
+    sample_frequency, data = format_grace_st(filePath)
+    # sample_frequency, data = extract_sensortile_data()
+    samplePeriod = 1/sample_frequency
+    # print(data[data.columns[3:6]])
+    # quit()
+    # sample_frequency = float(freq)
+    time, gyrX, gyrY, gyrZ, accX, accY, accZ, magX, magY, magZ = extract_data(filePath)
+
+    # unit testing
+    # assert((data[data.columns[3]] == accX).all)
+    # assert((data[data.columns[4]] == accY).all)
+    # assert((data[data.columns[5]] == accZ).all)
+    # numSamples = len(time)
+
+    # factor = scaling # factor by which to subsample data
+
+    T = len(time)*samplePeriod # total time
+    # N = int((T/samplePeriod)/factor)
+    # sample_frequency = N/T
+    # sample_frequency=float(freq)
+    N = len(time)
+    # print("test new sample frequency is {} Hz".format(sample_frequency))
+
+
+    # print("length of time series is {}".format(N))
+    # print("threshold = {}".format(float(tau)))
+
+    # -------------------------------------------------------------------------
+    # subsampling accX_ss = accX_subsampled
+    if subsample:
+        time = signal.resample(time, N)
+
+        accX = signal.resample(accX, N)
+        accY = signal.resample(accY, N)
+        accZ = signal.resample(accZ, N)
+
+        gyrX = signal.resample(gyrX, N)
+        gyrY = signal.resample(gyrY, N)
+        gyrZ = signal.resample(gyrZ, N)
+
+        magX = signal.resample(magX, N)
+        magY = signal.resample(magY, N)
+        magZ = signal.resample(magZ, N)
+
+    # -------------------------------------------------------------------------
+    # signal processing
+
+    # Compute accelerometer magnitude
+    acc_mag = np.sqrt(accX*accX+accY*accY+accZ*accZ)
+
+    # # Compute magentometer magnitude
+    # mag_mag = np.sqrt(magX*magX+magY*magY+magZ*magZ)
+
+    # # Compute gyroscope magnitude
+    # gyr_mag = np.sqrt(gyrX*gyrX+gyrY*gyrY+gyrZ*gyrZ)
+
+    # HP filter accelerometer data
+    # Hodrick-Prescott filter: removes cyclical components of signal
+    filtCutOff = 0.001
+    b, a = signal.butter(1, (2*filtCutOff)/(1/samplePeriod), 'highpass')
+    acc_magFilt = signal.filtfilt(b, a, acc_mag, padtype = 'odd', padlen=3*(max(len(b),len(a))-1))
+
+    # Compute absolute value
+    acc_magFilt = np.abs(acc_magFilt)
+
+    # LP filter accelerometer data
+    # Low-Pass filter: use butterworth filter to filter out high frequency data
+    filtCutOff = 5
+    b, a = signal.butter(1, (2*filtCutOff)/(1/samplePeriod), 'lowpass') #'lowpass'
+    acc_magFilt = signal.filtfilt(b, a, acc_magFilt, padtype = 'odd', padlen=3*(max(len(b),len(a))-1))
+
+    # -------------------------------------------------------------------------
+    # Threshold detection
+    # tau = 0.1
+    # tauY = .9
+    stationary = acc_magFilt < tau # and gyrY < tauY # originally set to 0.05
+
+    # stationary_gyr = gyr_mag < 40
+
+    if plot_graphs: 
+        plot_raw_data()
+
+
+    #------------------------------------------------------------------------------------
+    # Compute orientation
+    acc_data = [accX, accY, accZ]
+    gyr_data = [gyrX, gyrY, gyrZ]
+    mag_data = [magX, magY, magZ]
+
+    quat = compute_quaternions(time, acc_data, gyr_data, mag_data, sample_frequency, stationary, alg, use_MARG)
 
     #------------------------------------------------------------------------------------
     # Compute translational accelerations
