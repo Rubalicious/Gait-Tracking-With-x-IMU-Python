@@ -13,35 +13,6 @@ from matplotlib import pyplot as plt
 # import pylops
 import pandas as pd
 import os
-# import seaborn as sns
-
-# option = 'IMU' # or 'MARG'
-# parser = argparse.ArgumentParser()
-# parser.add_argument(
-#     '-a', '--algorithm',
-#     default='IMU',
-#     help='choose between IMU and MARG')
-# parser.add_argument(
-#     '-f', '--frequency',
-#     default='256',
-#     help='choose sampling frequency to use'
-# )
-# parser.add_argument(
-#     '-s', '--scaling',
-#     default=1,
-#     help="factor by which to subsample data"
-# )
-# parser.add_argument(
-#     '-t', '--tau',
-#     default=0.1,
-#     help="specify the acceleration threshold"
-# )
-# args = parser.parse_args()
-# option = args.algorithm
-# sf = float(args.frequency)
-# tau = float(args.tau)
-# scaling = float(args.scaling)
-
 
 # filePath = 'datasets/straightLine'
 # startTime = 6
