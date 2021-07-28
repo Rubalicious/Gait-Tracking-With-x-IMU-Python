@@ -77,9 +77,9 @@ import os
 # samplePeriod=1/256
 
 # index = 1
-filePath = './output'
+filePath = './cpath_2'
 startTime=0
-stopTime=500
+stopTime=10000
 # samplePeriod=1/256
 
 def format_grace_st(filePath):
@@ -172,8 +172,7 @@ def extract_data(filePath):
     accX = xIMUdata.CalInertialAndMagneticData.accelerometer[:,0]
     accY = xIMUdata.CalInertialAndMagneticData.accelerometer[:,1]
     accZ = xIMUdata.CalInertialAndMagneticData.accelerometer[:,2]
-    # print(xIMUdata.CalInertialAndMagneticData.magnetometer)
-    # quit()
+
     magX = xIMUdata.CalInertialAndMagneticData.magnetometer[:,0]
     magY = xIMUdata.CalInertialAndMagneticData.magnetometer[:,1]
     magZ = xIMUdata.CalInertialAndMagneticData.magnetometer[:,2]
@@ -191,7 +190,7 @@ def extract_data(filePath):
     magZ = magZ[indexSel]
     return time, gyrX, gyrY, gyrZ, accX, accY, accZ, magX, magY, magZ  
 
-def plot_raw_data():
+def plot_raw_data(acc_magFilt):
     time, gyrX, gyrY, gyrZ, accX, accY, accZ, magX, magY, magZ = extract_data(filePath)
     fig = plt.figure(figsize=(12, 7))
     ax1 = fig.add_subplot(3,1,1)
@@ -210,7 +209,7 @@ def plot_raw_data():
     ax2.plot(time,accX,c='r',linewidth=0.5)
     ax2.plot(time,accY,c='g',linewidth=0.5)
     ax2.plot(time,accZ,c='b',linewidth=0.5)
-    # ax2.plot(time,acc_magFilt,c='k',linestyle=":",linewidth=1)
+    ax2.plot(time,acc_magFilt,c='k',linestyle=":",linewidth=1)
     # ax2.plot(time,stationary,c='k')
     ax2.set_title("accelerometer")
     ax2.set_xlabel("time (s)")
@@ -295,7 +294,7 @@ def plot_earth_frame_acc(time, acc, accX, accY, accZ):
     ax.legend(["x","y","z"])
     ax.set_title("Accelerometer data in Earth's Frame")
     # ax1.set_xlabel("time (s)")
-    ax.set_ylabel("accelerometer (m/s)")
+    ax.set_ylabel("accelerometer (m/s^2)")
     plt.show(block=False)
     ax2 = fig.add_subplot(211)
     ax2.plot(time,accX,c='r',linewidth=0.5)
@@ -344,8 +343,10 @@ def compute_quaternions(time, acc_data, gyr_data, mag_data, sample_frequency, st
             if not use_MARG: mag = []
             q = fourati.update(q, gyr=gyr, acc=acc, mag=mag)
         elif alg == 'EKF':
-            if not use_MARG: mag = []
-            q = ekf.update(q, gyr=gyr, acc=acc, mag=mag)
+            if use_MARG:
+                q = ekf.update(q, gyr=gyr, acc=acc, mag=mag)
+            else:
+                q = ekf.update(q, gyr=gyr, acc=acc)
         else:
             raise("Algorithm not defined. Choose between: Madgwick, Mahony, Fourati, and EKF.")
 
@@ -371,7 +372,7 @@ def compute_quaternions(time, acc_data, gyr_data, mag_data, sample_frequency, st
             if use_MARG:
                 quat[t,:] = madgwick.updateMARG(q, gyr=gyr, acc=acc, mag=mag)
             else:
-                quat[t,:] = madgwick.updateIMU(q, gyr=gyr, acc=acc) #, mag=mag  # updateIMU # updateMARG # update
+                quat[t,:] = madgwick.updateIMU(q, gyr=gyr, acc=acc)
         elif alg == 'Mahony':
             if use_MARG:
                 quat[t,:] = mahony.updateMARG(q, gyr=gyr, acc=acc, mag=mag)
@@ -381,21 +382,27 @@ def compute_quaternions(time, acc_data, gyr_data, mag_data, sample_frequency, st
             if not use_MARG: mag = []
             quat[t,:] = fourati.update(q, gyr=gyr, acc=acc, mag=mag)
         elif alg == 'EKF':
-            if not use_MARG: mag = []
+            if not use_MARG: mag = None
             quat[t,:] = ekf.update(q, gyr=gyr, acc=acc, mag=mag)
     return quat
 
+def rotate_acc_to_earth_frame(accX,accY,accZ,quat, alg = "Madgwick"):
+    # Rotate body accelerations to Earth frame
+    acc = []
+    for x,y,z,q in zip(accX,accY,accZ,quat):
+        acc.append(q_rot(q_conj(q), np.array([ x, y, z]))) 
+        # acc.append()
+    acc = np.array(acc)
+    # print("earth frame acceleration vector time series shape is {}".format(np.shape(acc)))
+    # if alg == "EKF":
+    #     acc += np.array([0,0,1])
+    #     acc *= -9.81 # converting to units of m/s^2
+    # else:
+    acc -= np.array([0,0,1])
+    acc *= 9.81 # converting to units of m/s^2
+    return acc
 
-# class OriEst():
-#     def __init__(self, filePath) -> None:
-#         time, gyrX, gyrY, gyrZ, accX, accY, accZ, magX, magY, magZ = extract_data(filePath)
-#         self.time = time
-#         self.gyrX = gyrX
-#         self.gyrY = gyrY
-#         self.
-        
-
-def build_trajectory(freq=256, tau=0.05, alg="Madgwick", plot_graphs=False, use_MARG=False, subsample=False):
+def build_trajectory( tau=0.05, alg="Madgwick", use_MARG=False, plot_graphs=False,  subsample=False):
     global samplePeriod
     # -------------------------------------------------------------------------
     # extract data
@@ -479,7 +486,7 @@ def build_trajectory(freq=256, tau=0.05, alg="Madgwick", plot_graphs=False, use_
     # stationary_gyr = gyr_mag < 40
 
     if plot_graphs: 
-        plot_raw_data()
+        plot_raw_data(acc_magFilt)
 
 
     #------------------------------------------------------------------------------------
@@ -491,18 +498,32 @@ def build_trajectory(freq=256, tau=0.05, alg="Madgwick", plot_graphs=False, use_
     quat = compute_quaternions(time, acc_data, gyr_data, mag_data, sample_frequency, stationary, alg, use_MARG)
 
     #------------------------------------------------------------------------------------
+    # Generate quaternions for all algorithms
+    fig = plt.figure(figsize=(10, 7))
+    ax = fig.add_subplot(511)
+    ax.plot(time,accX,c='r',linewidth=0.5)
+    ax.plot(time,accY,c='g',linewidth=0.5)
+    ax.plot(time,accZ,c='b',linewidth=0.5)
+    ax.legend(["x","y","z"])
+    ax.set_title("Accelerometer data in Sensor's Frame")
+
+    algs = ["Madgwick", "Mahony", "Fourati"] # , "EKF"
+    for i in range(len(algs)):
+        quat = compute_quaternions(time, acc_data, gyr_data, mag_data, sample_frequency, stationary, alg = algs[i], use_MARG = use_MARG)
+        acc = rotate_acc_to_earth_frame(accX,accY,accZ,quat, alg = algs[i])
+        ax = fig.add_subplot(512+i)
+        ax.plot(time,acc[:,0],c='r',linewidth=0.5)
+        ax.plot(time,acc[:,1],c='g',linewidth=0.5)
+        ax.plot(time,acc[:,2],c='b',linewidth=0.5)
+        ax.legend(["x","y","z"])
+        ax.set_title("{}".format(algs[i]))
+        ax.set_ylabel("acc [m/s^2]")
+
+    #------------------------------------------------------------------------------------
     # Compute translational accelerations
 
     # Rotate body accelerations to Earth frame
-    acc = []
-    for x,y,z,q in zip(accX,accY,accZ,quat):
-        acc.append(q_rot(q_conj(q), np.array([ x, y, z]))) 
-        # acc.append()
-    acc = np.array(acc)
-    print("earth frame acceleration vector time series shape is {}".format(np.shape(acc)))
-    acc -= np.array([0,0,1])
-    acc *= 9.81 # converting to units of m/s^2
-
+    acc = rotate_acc_to_earth_frame(accX,accY,accZ,quat, alg=alg)
     # plot acc vectors in earth frame.
     plot_earth_frame_acc(time, acc, accX, accY, accZ)
     
@@ -564,10 +585,10 @@ def build_trajectory(freq=256, tau=0.05, alg="Madgwick", plot_graphs=False, use_
 
 if __name__ == "__main__":
     pos, quat, vel = build_trajectory(
-        tau=0.003,
+        tau=0.1,
         plot_graphs=True, 
-        alg="Madgwick",
-        use_MARG=False
+        alg="Fourati",
+        use_MARG=True
     ) # reference data
     # factors = np.linspace(1.0, 3.0, 10)
     # taus = np.linspace(0.05, 0.1, 10)
