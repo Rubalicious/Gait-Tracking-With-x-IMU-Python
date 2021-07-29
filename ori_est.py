@@ -48,7 +48,7 @@ import os
 # samplePeriod=1/256
 
 # index = 1
-filePath = './output_1'
+filePath = './corridor_3'
 startTime=0
 stopTime=10000
 # samplePeriod=1/256
@@ -390,11 +390,11 @@ def rotate_acc_to_earth_frame(accX,accY,accZ,quat, alg = "Madgwick"):
     #     acc += np.array([0,0,1])
     #     acc *= -9.81 # converting to units of m/s^2
     # else:
-    acc -= np.array([0,0,1])
+    acc += np.array([0,1,0])
     acc *= 9.81 # converting to units of m/s^2
     return acc
 
-def build_trajectory( tau=0.05, alg="Madgwick", use_MARG=False, plot_graphs=False,  subsample=False):
+def build_trajectory( tau=0.05, alg="Madgwick", use_MARG=False, plot_graphs=True,  subsample=False):
     global samplePeriod
     # -------------------------------------------------------------------------
     # extract data
@@ -578,7 +578,7 @@ def build_trajectory( tau=0.05, alg="Madgwick", use_MARG=False, plot_graphs=Fals
 
 if __name__ == "__main__":
     pos, quat, vel = build_trajectory(
-        tau=0.002,
+        tau=0.09,
         alg="Madgwick",
         use_MARG=False
     ) # reference data
