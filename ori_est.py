@@ -1,5 +1,5 @@
 import ahrs
-# from ahrs import Quaternion
+from ahrs import Quaternion
 from ahrs.common.orientation import q_prod, q_conj, acc2q, am2q, q2R, q_rot
 # import pyquaternion
 import ximu_python_library.xIMUdataClass as xIMU
@@ -48,7 +48,7 @@ import os
 # samplePeriod=1/256
 
 # index = 1
-filePath = './cpath_2'
+filePath = './output_1'
 startTime=0
 stopTime=10000
 # samplePeriod=1/256
@@ -291,35 +291,35 @@ def compute_quaternions(time, acc_data, gyr_data, mag_data, sample_frequency, st
 
      # types of filters
     mahony = ahrs.filters.Mahony(Kp=1, Ki=0, KpInit=1, Dt=1/sample_frequency)
-    madgwick = ahrs.filters.Madgwick(Dt=1/sample_frequency)
+    madgwick = ahrs.filters.Madgwick(Dt=1/sample_frequency, beta=0.001)
     aqua = ahrs.filters.AQUA(Dt=1/sample_frequency)
     comp = ahrs.filters.Complementary(Dt=1/sample_frequency)
     ekf = ahrs.filters.EKF(Dt=1/sample_frequency)
     fourati = ahrs.filters.Fourati(Dt=1/sample_frequency)
 
-    # initial convergence
+    # # initial convergence
     q = np.array([1.0,0.0,0.0,0.0], dtype=np.float64)
-    for i in range(2000):
-        if alg == 'Madgwick':
-            if use_MARG:
-                q = madgwick.updateMARG(q, gyr=gyr, acc=acc, mag=mag)
-            else:
-                q = madgwick.updateIMU(q, gyr=gyr, acc=acc) #, mag=mag  # updateIMU # updateMARG # update
-        elif alg == 'Mahony':
-            if use_MARG:
-                q = mahony.updateMARG(q, gyr=gyr, acc=acc, mag=mag)
-            else:
-                q = mahony.updateIMU(q, gyr=gyr, acc=acc)
-        elif alg == 'Fourati':
-            if not use_MARG: mag = []
-            q = fourati.update(q, gyr=gyr, acc=acc, mag=mag)
-        elif alg == 'EKF':
-            if use_MARG:
-                q = ekf.update(q, gyr=gyr, acc=acc, mag=mag)
-            else:
-                q = ekf.update(q, gyr=gyr, acc=acc)
-        else:
-            raise("Algorithm not defined. Choose between: Madgwick, Mahony, Fourati, and EKF.")
+    # for i in range(2000):
+    #     if alg == 'Madgwick':
+    #         if use_MARG:
+    #             q = madgwick.updateMARG(q, gyr=gyr, acc=acc, mag=mag)
+    #         else:
+    #             q = madgwick.updateIMU(q, gyr=gyr, acc=acc) #, mag=mag  # updateIMU # updateMARG # update
+    #     elif alg == 'Mahony':
+    #         if use_MARG:
+    #             q = mahony.updateMARG(q, gyr=gyr, acc=acc, mag=mag)
+    #         else:
+    #             q = mahony.updateIMU(q, gyr=gyr, acc=acc)
+    #     elif alg == 'Fourati':
+    #         if not use_MARG: mag = []
+    #         q = fourati.update(q, gyr=gyr, acc=acc, mag=mag)
+    #     elif alg == 'EKF':
+    #         if use_MARG:
+    #             q = ekf.update(q, gyr=gyr, acc=acc, mag=mag)
+    #         else:
+    #             q = ekf.update(q, gyr=gyr, acc=acc)
+    #     else:
+    #         raise("Algorithm not defined. Choose between: Madgwick, Mahony, Fourati, and EKF.")
 
     # all data can be returned in this form
     # orientation = Fourati(gyr)
@@ -327,7 +327,7 @@ def compute_quaternions(time, acc_data, gyr_data, mag_data, sample_frequency, st
     # orientation = Mahony(gyr=gyro_data, acc=acc_data, mag=mag_data) 
 
     # For all data
-    for t in range(0,time.size):
+    for t in range(1,time.size):
         if(stationary[t]):
             mahony.Kp = 0.5 # 0.5
         else:
@@ -361,7 +361,28 @@ def rotate_acc_to_earth_frame(accX,accY,accZ,quat, alg = "Madgwick"):
     # Rotate body accelerations to Earth frame
     acc = []
     for x,y,z,q in zip(accX,accY,accZ,quat):
-        acc.append(q_rot(q_conj(q), np.array([ x, y, z]))) 
+        # v = Quaternion(np.array([0, x, y, z]))
+        # q = Quaternion(q)
+        # print(q)
+        # # print(q.conj)
+        # # print(q.conjugate)
+        # p = Quaternion(q.conj)
+        # print(p)
+        # print(v)
+        # t = Quaternion(q*v)
+        # print(t*p)
+        # rotated = t*p
+        # M = q.to_DCM()
+        # rotated = np.matmul(  np.matmul(M, np.array([x,y,z]))  , M.T)
+        # rotated = np.matmul(M.T, np.array([x,y,z]))
+        # print(rotated)
+        # print(M.T == Quaternion(q.conj).to_DCM())
+       
+
+        # rotated = q_rot(q,temp)
+        # print(temp)
+        temp = q_rot(q_conj(q), np.array([ x, y, z]))
+        acc.append(  temp  ) 
         # acc.append()
     acc = np.array(acc)
     # print("earth frame acceleration vector time series shape is {}".format(np.shape(acc)))
@@ -459,17 +480,13 @@ def build_trajectory( tau=0.05, alg="Madgwick", use_MARG=False, plot_graphs=Fals
     if plot_graphs: 
         plot_raw_data(acc_magFilt)
 
-
     #------------------------------------------------------------------------------------
-    # Compute orientation
+    # Generate quaternions for all algorithms
+
     acc_data = [accX, accY, accZ]
     gyr_data = [gyrX, gyrY, gyrZ]
     mag_data = [magX, magY, magZ]
 
-    quat = compute_quaternions(time, acc_data, gyr_data, mag_data, sample_frequency, stationary, alg, use_MARG)
-
-    #------------------------------------------------------------------------------------
-    # Generate quaternions for all algorithms
     fig = plt.figure(figsize=(10, 7))
     ax = fig.add_subplot(511)
     ax.plot(time,accX,c='r',linewidth=0.5)
@@ -478,7 +495,7 @@ def build_trajectory( tau=0.05, alg="Madgwick", use_MARG=False, plot_graphs=Fals
     ax.legend(["x","y","z"])
     ax.set_title("Accelerometer data in Sensor's Frame")
 
-    algs = ["Madgwick", "Mahony", "Fourati"] # , "EKF"
+    algs = ["Madgwick", "Mahony", "Fourati", "EKF"] # 
     for i in range(len(algs)):
         quat = compute_quaternions(time, acc_data, gyr_data, mag_data, sample_frequency, stationary, alg = algs[i], use_MARG = use_MARG)
         acc = rotate_acc_to_earth_frame(accX,accY,accZ,quat, alg = algs[i])
@@ -489,6 +506,11 @@ def build_trajectory( tau=0.05, alg="Madgwick", use_MARG=False, plot_graphs=Fals
         ax.legend(["x","y","z"])
         ax.set_title("{}".format(algs[i]))
         ax.set_ylabel("acc [m/s^2]")
+    
+    #------------------------------------------------------------------------------------
+    # Compute orientation
+
+    quat = compute_quaternions(time, acc_data, gyr_data, mag_data, sample_frequency, stationary, alg, use_MARG)
 
     #------------------------------------------------------------------------------------
     # Compute translational accelerations
@@ -556,10 +578,9 @@ def build_trajectory( tau=0.05, alg="Madgwick", use_MARG=False, plot_graphs=Fals
 
 if __name__ == "__main__":
     pos, quat, vel = build_trajectory(
-        tau=0.1,
-        plot_graphs=True, 
-        alg="Fourati",
-        use_MARG=True
+        tau=0.002,
+        alg="Madgwick",
+        use_MARG=False
     ) # reference data
     # factors = np.linspace(1.0, 3.0, 10)
     # taus = np.linspace(0.05, 0.1, 10)

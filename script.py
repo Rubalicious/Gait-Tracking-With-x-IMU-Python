@@ -12,6 +12,7 @@ from ahrs import QuaternionArray
 from skimage import restoration, filters
 import pylops
 import pandas as pd
+import argparse
 
 option = 'IMU' # or 'MARG'
 parser = argparse.ArgumentParser()
@@ -55,6 +56,25 @@ filePath = 'datasets/spiralStairs'
 startTime = 4
 stopTime = 47
 samplePeriod = 1.0/256
+
+def plot_earth_frame_acc(time, acc, accX, accY, accZ):
+    fig = plt.figure(figsize=(10, 7))
+    ax = fig.add_subplot(212)
+    ax.plot(time,acc[:,0],c='r',linewidth=0.5)
+    ax.plot(time,acc[:,1],c='g',linewidth=0.5)
+    ax.plot(time,acc[:,2],c='b',linewidth=0.5)
+    ax.legend(["x","y","z"])
+    ax.set_title("Accelerometer data in Earth's Frame")
+    # ax1.set_xlabel("time (s)")
+    ax.set_ylabel("accelerometer (m/s^2)")
+    plt.show(block=False)
+    ax2 = fig.add_subplot(211)
+    ax2.plot(time,accX,c='r',linewidth=0.5)
+    ax2.plot(time,accY,c='g',linewidth=0.5)
+    ax2.plot(time,accZ,c='b',linewidth=0.5)
+    ax2.set_title("Accelerometer data in Sensor's Frame")
+    ax2.set_ylabel("accelerometer (g)")
+    ax2.legend(["x","y","z"])
 
 def build_trajectory(freq=256, tau=tau):
     # -------------------------------------------------------------------------
@@ -257,10 +277,10 @@ def build_trajectory(freq=256, tau=tau):
 
     # initial convergence
     q = np.array([1.0,0.0,0.0,0.0], dtype=np.float64)
-    for i in range(2000):
-        # if option == 'IMU':
-        q = madgwick.updateIMU(q, gyr=gyr, acc=acc) #, mag=mag  # updateIMU # updateMARG # update
-        # elif option == 'MARG':
+    # for i in range(2000):
+    #     # if option == 'IMU':
+    #     q = madgwick.updateIMU(q, gyr=gyr, acc=acc) #, mag=mag  # updateIMU # updateMARG # update
+    #     # elif option == 'MARG':
             # q = ekf.update(q, gyr=gyr, acc=acc, mag=mag)
 
     # all data can be returned in this form
@@ -293,6 +313,8 @@ def build_trajectory(freq=256, tau=tau):
     acc = np.array(acc)
     acc = acc - np.array([0,0,1])
     acc = acc * 9.81
+
+    plot_earth_frame_acc(time, acc, accX, accY, accZ)
 
     # Compute translational velocities
     # acc[:,2] = acc[:,2] - 9.81
@@ -389,7 +411,7 @@ def build_trajectory(freq=256, tau=tau):
 
 if __name__ == "__main__":
     pos, quat = build_trajectory(freq=256, tau=0.05) # reference data
-    factors = np.linspace(1.0, 3.0, 10)
-    taus = np.linspace(0.05, 0.1, 10)
-    print(factors, taus)
+    # factors = np.linspace(1.0, 3.0, 10)
+    # taus = np.linspace(0.05, 0.1, 10)
+    # print(factors, taus)
 
