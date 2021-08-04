@@ -57,6 +57,15 @@ startTime = 4
 stopTime = 47
 samplePeriod = 1.0/256
 
+
+def compute_arclength(vel):
+    global samplePeriod
+    arclength = 0
+    for vx,vy,vz in vel:
+        arclength += np.sqrt(vx**2+vy**2+vz**2)
+    arclength *= samplePeriod
+    return arclength
+
 def plot_earth_frame_acc(time, acc, accX, accY, accZ):
     fig = plt.figure(figsize=(10, 7))
     ax = fig.add_subplot(212)
@@ -277,12 +286,12 @@ def build_trajectory(freq=256, tau=tau):
 
     # initial convergence
     q = np.array([1.0,0.0,0.0,0.0], dtype=np.float64)
-    # for i in range(2000):
-    #     # if option == 'IMU':
-    #     q = madgwick.updateIMU(q, gyr=gyr, acc=acc) #, mag=mag  # updateIMU # updateMARG # update
-    #     # elif option == 'MARG':
+    for i in range(2000):
+        # if option == 'IMU':
+        q = madgwick.updateIMU(q, gyr=gyr, acc=acc) #, mag=mag  # updateIMU # updateMARG # update
+        # elif option == 'MARG':
             # q = ekf.update(q, gyr=gyr, acc=acc, mag=mag)
-
+    print(q)
     # all data can be returned in this form
     # orientation = Fourati(gyr)
     # orientation = Madgwick(gyr=gyro_data, acc=acc_data, mag=mag_data)
@@ -389,7 +398,7 @@ def build_trajectory(freq=256, tau=tau):
     ax.set_xlim(min_,max_)
     ax.set_ylim(min_,max_)
     ax.set_zlim(min_,max_)
-    ax.set_title('trajectory using {}\nand sample frequency {:.2f}\nthreshold used: {:.2f}'.format('madgwick', sample_frequency, tau))
+    ax.set_title('trajectory using {}\nand sample frequency {:.2f}\nthreshold used: {:.2f}\narclength = {:.3f} m'.format('madgwick', sample_frequency, tau,compute_arclength(vel)))
     ax.set_xlabel("x position (m)")
     ax.set_ylabel("y position (m)")
     ax.set_zlabel("z position (m)")
@@ -399,19 +408,18 @@ def build_trajectory(freq=256, tau=tau):
 
     # -------------------------------------------------------------------------
     # upsample and record data
-    quat = signal.resample(quat, numSamples)
-    data = pd.DataFrame(quat)
-    data.to_csv("./data/quat_freq{}_thresh{}.csv".format(int(sample_frequency), tau))
-    pos = signal.resample(pos, numSamples)
-    data = pd.DataFrame(pos)
-    data.to_csv("./data/pos_freq{}_thresh{}.csv".format(int(sample_frequency), tau))
+    # quat = signal.resample(quat, numSamples)
+    # data = pd.DataFrame(quat)
+    # data.to_csv("./data/quat_freq{}_thresh{}.csv".format(int(sample_frequency), tau))
+    # pos = signal.resample(pos, numSamples)
+    # data = pd.DataFrame(pos)
+    # data.to_csv("./data/pos_freq{}_thresh{}.csv".format(int(sample_frequency), tau))
 
-    return pos, quat
+    return pos, vel, quat
 
 
 if __name__ == "__main__":
-    pos, quat = build_trajectory(freq=256, tau=0.05) # reference data
+    pos, vel, quat = build_trajectory(freq=256, tau=0.05) # reference data
     # factors = np.linspace(1.0, 3.0, 10)
     # taus = np.linspace(0.05, 0.1, 10)
     # print(factors, taus)
-
