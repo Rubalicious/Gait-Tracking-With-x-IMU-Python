@@ -296,9 +296,9 @@ def build_trajectory(freq=256, tau=tau):
     # orientation = Fourati(gyr)
     # orientation = Madgwick(gyr=gyro_data, acc=acc_data, mag=mag_data)
     # orientation = Mahony(gyr=gyro_data, acc=acc_data, mag=mag_data) 
-
+    quat[0,:] = q
     # For all data
-    for t in range(0,time.size):
+    for t in range(1,time.size):
         if(stationary[t]):
             mahony.Kp = 0.5 # 0.5
         else:
@@ -307,7 +307,7 @@ def build_trajectory(freq=256, tau=tau):
         acc = np.array([accX[t],accY[t],accZ[t]])
         mag = np.array([magX[t],magY[t],magZ[t]])
         # if option == 'IMU':
-        quat[t,:]=madgwick.updateIMU(q,gyr=gyr,acc=acc) # , mag=mag # updateIMU # updateMARG # update
+        quat[t,:]=madgwick.updateIMU(quat[t-1,:],gyr=gyr,acc=acc) # , mag=mag # updateIMU # updateMARG # update
         # elif option == 'MARG':
             # quat[t,:]=ekf.update(q,gyr=gyr,acc=acc, mag=mag)
 
@@ -388,13 +388,17 @@ def build_trajectory(freq=256, tau=tau):
     fig = plt.figure(figsize=(7, 7))
     ax = fig.add_subplot(111, projection='3d') # Axe3D object
 
-
-    ax.plot(posPlot[:,0],posPlot[:,1],posPlot[:,2])
+    N = len(posPlot)
+    print(N)
+    n_steps = int(N/40)
+    # for t in range(0,N,n_steps):
+    ax.plot(posPlot[:,0],posPlot[:,1],posPlot[:,2], c='b')
     # for i in range(0, len(posPlot), 200):
     #     A = Quaternion(quat[i]).to_DCM()
     #     ax.quiver(posPlot[i,0],posPlot[i,1],posPlot[i,2], A[:, 0], A[:,1], A[:, 2], color=['r','g','b']) # modify this to quiver.
     # print(quatPlot[-1])
     min_, max_ = np.min(np.min(posPlot,axis=0)), np.max(np.max(posPlot,axis=0))
+    print(min_, max_)
     ax.set_xlim(min_,max_)
     ax.set_ylim(min_,max_)
     ax.set_zlim(min_,max_)
@@ -402,6 +406,7 @@ def build_trajectory(freq=256, tau=tau):
     ax.set_xlabel("x position (m)")
     ax.set_ylabel("y position (m)")
     ax.set_zlabel("z position (m)")
+    # plt.savefig("img{}.png".format(t))
     plt.show(block=False)
 
     plt.show()

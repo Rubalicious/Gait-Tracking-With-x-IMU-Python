@@ -49,7 +49,7 @@ import os
 # samplePeriod=1/256
 
 # index = 1
-filePath = './track_1'
+filePath = './corridor_1'
 startTime=1
 stopTime=10000
 # samplePeriod=1/256
@@ -337,7 +337,7 @@ def compute_quaternions(time, acc_data, gyr_data, mag_data, sample_frequency, st
         else:
             raise("Algorithm not defined. Choose between: Madgwick, Mahony, Fourati, and EKF.")
     print(alg, q)
-
+    quat[0,:] = q
     # all data can be returned in this form
     # orientation = Fourati(gyr)
     # orientation = Madgwick(gyr=gyro_data, acc=acc_data, mag=mag_data)
@@ -358,9 +358,10 @@ def compute_quaternions(time, acc_data, gyr_data, mag_data, sample_frequency, st
             # quat[t,:]=ekf.update(q,gyr=gyr,acc=acc, mag=mag)
         if alg == 'Madgwick':
             if use_MARG:
-                quat[t,:] = madgwick.updateMARG(q, gyr=gyr, acc=acc, mag=mag)
+                quat[t,:] = madgwick.updateMARG(quat[t-1,:], gyr=gyr, acc=acc, mag=mag)
             else:
-                quat[t,:] = madgwick.updateIMU(q, gyr=gyr, acc=acc)
+                quat[t,:] = madgwick.updateIMU(quat[t-1,:], gyr=gyr, acc=acc)
+                print(quat[t,:])
         elif alg == 'Mahony':
             if use_MARG:
                 quat[t,:] = mahony.updateMARG(q, gyr=gyr, acc=acc, mag=mag)
@@ -386,7 +387,7 @@ def rotate_acc_to_earth_frame(accX,accY,accZ,quat, alg = "Madgwick"):
     #     acc *= -9.81 # converting to units of m/s^2
     # else:
     # gravity compensation
-    acc -= np.array([0,0,1])
+    acc += np.array([0,1,0])
     acc *= 9.81 # converting to units of m/s^2
     return acc
 
@@ -678,7 +679,7 @@ def build_trajectory(tau=0.05, alg="Madgwick", use_MARG=False, plot_graphs=True,
 
 if __name__ == "__main__":
     pos, quat, vel = build_trajectory(
-        tau=5e-3,
+        tau=5e-2,
         alg="Madgwick",
         use_MARG=False
     ) # reference data
